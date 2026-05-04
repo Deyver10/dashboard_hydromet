@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Ambiental Andina{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+{% endblock %}
+
+{% block content %}
+<header class="main-header">
+    <div class="header-left">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" class="nav-logo" onerror="this.style.display='none'">
+    </div>
+    <div class="header-center">
+        <h1 id="mainTitle">MONITOR METEOROLÓGICO</h1>
+    </div>
+    <div class="header-right">
+        <span class="user-display"><i class="fa-solid fa-user-circle"></i> {{ usuario }}</span>
+        <a href="{{ url_for('logout') }}" class="btn-logout" title="Cerrar Sesión">
+            <i class="fa-solid fa-right-from-bracket"></i>
+        </a>
+    </div>
+</header>
+
+<main class="dashboard-container">
+    <section class="top-section" id="topSection">
+        <aside class="left-panel">
+            <!-- SECCIÓN 1: SELECCIÓN DE PUNTO Y BOTÓN ELIMINAR -->
+            <div class="panel-segment">
+                <label style="font-size: 0.75rem; font-weight: bold; color: #1a5276; display: block; margin-bottom: 5px;">
+                    <i class="fa-solid fa-location-dot"></i> ESTACIÓN / PUNTO:
+                </label>
+                <div class="select-container" style="display: flex; gap: 8px; align-items: center;">
+                    <select id="puntoSelect" onchange="handlePuntoSelection()" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-weight: 600; color: #333; cursor: pointer; background: rgba(255,255,255,0.9);">
+                        <!-- Placeholder elegante -->
+                        <option value="" disabled selected style="color: #999;">Seleccionar punto...</option>
+                        <!-- Opción de agregar -->
+                        <option value="TEMP_NUEVO_PUNTO" style="color: #27ae60; font-weight: bold;">&#x2795; Agregar Nuevo Punto</option>
+                        <!-- Aquí se inyectarán dinámicamente los puntos del usuario -->
+                    </select>
+
+                    <!-- Botón de eliminar (Oculto por defecto, se muestra vía JS) -->
+                    <button id="btnEliminarPunto" onclick="eliminarPuntoSeleccionado()" style="display: none; background: #e74c3c; color: white; border: none; border-radius: 6px; padding: 10px 14px; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" title="Eliminar esta estación">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- SECCIÓN 2: CONTROLES DE VARIABLES Y FECHAS (Se oculta al agregar punto) -->
+            <div id="divControlesExtra" style="display: none; flex-direction: column; gap: 15px; margin-top: 15px;">
+                <div class="panel-segment">
+                    <label style="font-size: 0.75rem; font-weight: bold; color: #1a5276; display: block; margin-bottom: 5px;">VARIABLE:</label>
+                    <select id="varSelect" onchange="renderTable()" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #ccc; background: rgba(255,255,255,0.9);">
+                        <optgroup label="Principales">
+                            <option value="pp" selected>Precipitación (mm)</option>
+                            <option value="temp">Temperatura (°C)</option>
+                            <option value="et">Evapotranspiración (mm)</option>
+                            <option value="dew">Punto de Rocío (°C)</option>
+                            <option value="rad">Radiación SW (W/m²)</option>
+                        </optgroup>
+                        <optgroup label="Atmósfera y Viento">
+                            <option value="hr">Humedad Relativa (%)</option>
+                            <option value="v_vel">Velocidad del Viento</option>
+                            <option value="pres">Presión Superficial (hPa)</option>
+                        </optgroup>
+                        <optgroup label="Nubosidad">
+                            <option value="nbaja">Nubosidad Baja (%)</option>
+                            <option value="nmedia">Nubosidad Media (%)</option>
+                            <option value="nalta">Nubosidad Alta (%)</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div class="date-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <label style="font-size: 0.75rem; font-weight: bold; color: #1a5276; display: block; margin-bottom: 5px;">INICIO:</label>
+                        <input type="date" id="fechaInicio" onchange="renderTable()" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #ccc; background: rgba(255,255,255,0.9); box-sizing: border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.75rem; font-weight: bold; color: #1a5276; display: block; margin-bottom: 5px;">FIN:</label>
+                        <input type="date" id="fechaFin" onchange="renderTable()" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #ccc; background: rgba(255,255,255,0.9); box-sizing: border-box;">
+                    </div>
+
+                    <!-- Selector para Día Histórico (Se muestra en la vista horaria) -->
+                    <div id="contenedorComparacion" style="grid-column: span 2; display: none; background: rgba(230, 126, 34, 0.1); padding: 8px; border-radius: 6px; border: 1px solid rgba(230, 126, 34, 0.3);">
+                        <label style="color: #d35400; font-size: 0.75rem; font-weight: bold; display: block; margin-bottom: 5px;"><i class="fa-solid fa-code-compare"></i> DÍA HISTÓRICO (COMPARACIÓN):</label>
+                        <input type="date" id="fechaComparacion" onchange="renderComparativos()" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #e67e22; outline: none; box-sizing: border-box; background: #fff;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECCIÓN 3: FORMULARIO DE NUEVO PUNTO (Diseño punteado) -->
+            <div id="formNuevoPunto" class="form-nuevo" style="display: none; background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 15px; border: 2px dashed #bdc3c7;">
+                <label style="font-size: 11px; font-weight: bold; color: #555; display: block; margin-bottom: 5px;">NOMBRE DEL PUNTO:</label>
+                <input type="text" id="tempNombre" placeholder="Ej: Puente Carrasquillo" style="width: 100%; margin-bottom: 10px; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+
+                <div class="coord-inputs" style="display: flex; gap: 10px; margin-bottom: 5px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 11px; font-weight: bold; color: #555; display: block; margin-bottom: 5px;">LATITUD:</label>
+                        <input type="number" id="tempLat" step="0.0001" placeholder="Ej: -5.2600" style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 11px; font-weight: bold; color: #555; display: block; margin-bottom: 5px;">LONGITUD:</label>
+                        <input type="number" id="tempLon" step="0.0001" placeholder="Ej: -80.1300" style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                </div>
+
+                <p style="font-size: 10px; color: #7f8c8d; font-style: italic; margin: 10px 0;">*Haz clic en el mapa para capturar las coordenadas exactas.</p>
+                <button class="btn-generar" onclick="generarNuevoPunto()" style="width: 100%; background: #2980b9; color: white; border: none; padding: 10px; border-radius: 5px; font-weight: bold; cursor: pointer; transition: background-color 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">Generar Datos</button>
+            </div>
+        </aside>
+
+        <section class="right-panel">
+            <div id="map"></div>
+        </section>
+    </section>
+
+    <section class="bottom-section" id="bottomSection" style="display: none;">
+        <div class="section-header">
+            <h3 id="lblTituloTabla" style="font-family: 'Segoe UI', Tahoma, sans-serif; letter-spacing: 0.5px;">Datos Meteorológicos</h3>
+            <div class="actions">
+                <button onclick="descargarCSV()" class="btn-tool btn-outline" title="Descargar CSV"><i class="fa-solid fa-download"></i> Descargar</button>
+                <button id="btnVolverDiario" onclick="volverDiario()" class="btn-tool btn-outline" style="display:none;"><i class="fa-solid fa-arrow-left"></i> Diario</button>
+                <button onclick="cerrarVista()" class="btn-tool btn-outline">✖ Cerrar</button>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table id="heatmapTable">
+                <thead id="tableHead"></thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </section>
+
+<section class="analitica-section" id="analiticaSection" style="display: none;">
+        <div style="border-bottom: 2px solid #3498db; margin-bottom: 15px; padding-bottom: 5px;">
+            <h2 style="color: #1a5276; margin: 0; font-size: 1.2rem;"><i class="fa-solid fa-chart-line"></i> Comparación de Variables Meteorológicas </h2>
+            <p style="margin: 2px 0 0 0; font-size: 12px; color: #555;">Selecciona los puntos, modelos y variables para generar gráficos. El gráfico respeta las fechas y el formato horario/diario de la tabla principal.</p>
+        </div>
+
+        <div class="analitica-grid">
+            <div class="analitica-col">
+                <h4>1. Puntos (Estaciones)</h4>
+                <div id="chkPuntos"></div>
+            </div>
+            <div class="analitica-col">
+                <h4>2. Modelos</h4>
+                <div id="chkModelos"></div>
+            </div>
+            <div class="analitica-col">
+                <h4>3. Variables</h4>
+                <div id="chkVariables"></div>
+            </div>
+        </div>
+
+        <div id="chartsContainer" class="charts-container">
+            <div class="chart-placeholder">
+                Selecciona al menos 1 Punto, 1 Modelo y 1 Variable para visualizar los datos comparativos.
+            </div>
+        </div>
+    </section>
+</main>
+
+<div id="loadingOverlay">
+    <div class="spinner"></div>
+    <p>Descargando Modelos...</p>
+    <p style="font-size: 12px; color: #ccc;">Sincronizando de forma segura para no saturar la red.</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    const modelosString = '{{ modelos_json | safe }}';
+    const configModelos = modelosString ? JSON.parse(modelosString) : [];
+</script>
+
+<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% endblock %}

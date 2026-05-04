@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Iniciar Sesión - Ambiental Andina{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="login-wrapper">
+    <div class="login-card">
+        <div class="logo-container">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Ambiental Andina" onerror="this.style.display='none'">
+            <h2>DASHBOARD METEOROLÓGICO</h2>
+        </div>
+        
+        {% with messages = get_flashed_messages(category_filter=["error"]) %}
+          {% if messages %}
+            <div class="alert-error">
+              {% for message in messages %}
+                {{ message }}
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('login') }}">
+            <div class="input-group">
+                <i class="fa-solid fa-user icon-left"></i>
+                <input type="text" id="username" name="username" placeholder="Usuario" required autocomplete="off">
+            </div>
+            
+            <div class="input-group">
+                <i class="fa-solid fa-lock icon-left"></i>
+                <input type="password" id="password" name="password" placeholder="Contraseña" required>
+                <i class="fa-solid fa-eye-slash icon-right" id="togglePassword" title="Mostrar/Ocultar"></i>
+            </div>
+
+            <div class="options-group">
+                <label class="checkbox-container">
+                    <input type="checkbox" name="remember" id="remember">
+                    <span>Recordar usuario</span>
+                </label>
+            </div>
+            
+            <button type="submit" class="btn-login">INICIAR SESIÓN</button>
+        </form>
+    </div>
+    
+    <div class="login-footer">
+        Ambiental Andina © 2026 | Monitoreo y Análisis de Datos Climáticos
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Script para hacer funcionar el ojito de la contraseña
+    const togglePassword = document.querySelector('#togglePassword');
+    const password = document.querySelector('#password');
+
+    togglePassword.addEventListener('click', function () {
+        // Cambiamos el tipo de input de 'password' a 'text' y viceversa
+        const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+        password.setAttribute('type', type);
+        
+        // Cambiamos el icono de FontAwesome (ojo tachado / ojo normal)
+        this.classList.toggle('fa-eye');
+        this.classList.toggle('fa-eye-slash');
+    });
+</script>
+{% endblock %}
